@@ -32,23 +32,53 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
         UserDetailsWidget(recipeSnapshot: widget.recipeSnapshot);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    _tabViewWidget = TabViewWidget(
-      recipeSnapshot: widget.recipeSnapshot,
-      servings: _servings,
-      currentPageIndex: _currentPageIndex, // Pass the current index
-      updateServings: _updateServings,
-      updateCurrentPageIndex: _updateCurrentPageIndex,
-    );
+@override
+Widget build(BuildContext context) {
+  _tabViewWidget = TabViewWidget(
+    recipeSnapshot: widget.recipeSnapshot,
+    servings: _servings,
+    currentPageIndex: _currentPageIndex,
+    updateServings: _updateServings,
+    updateCurrentPageIndex: _updateCurrentPageIndex,
+  );
 
-    return Scaffold(
-      backgroundColor: Color(0xFFD1E7D2),
-      body: ListView(
-        children: [_videoWidget, _userDetailsWidget, _tabViewWidget],
-      ),
-    );
-  }
+  return Scaffold(
+    backgroundColor: Color(0xFFD1E7D2),
+    body: ListView(
+      children: [
+        _videoWidget,
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.recipeSnapshot['title'], // Display recipe title here
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.thumb_up),
+                onPressed: () {},
+              ),
+              IconButton(
+                icon: Icon(Icons.save),
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ),
+        _userDetailsWidget,
+        _tabViewWidget,
+      ],
+    ),
+  );
+}
+
+
 
   void _updateServings(int newServings) {
     setState(() {
@@ -177,46 +207,55 @@ class UserDetailsWidget extends StatelessWidget {
         String username = userData['name'] ?? 'Unknown User';
         String profilePicture = userData['profilepic'] ?? '';
 
-        return ListTile(
-          leading: FutureBuilder(
-             future: FirebaseStorageService.getImageUrl(profilePicture),
-            builder: (context, urlSnapshot) {
-              if (urlSnapshot.connectionState == ConnectionState.waiting) {
-                return CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                      const Color(0xFFD1E7D2)),
-                  strokeWidth: 2.0,
-                );
-              } else if (urlSnapshot.hasError) {
-                return Text('Error: ${urlSnapshot.error}');
-              } else {
-                var url = urlSnapshot.data as String;
-                return CircleAvatar(
-                  backgroundImage: NetworkImage(url),
-                );
-              }
-            },
-          ),
-          title: Row(
-            children: [
-              Text(' $username'),
-              Spacer(),
-              IconButton(
-                icon: Icon(Icons.share),
-                onPressed: () {},
+        return Row(
+          children: [
+            FutureBuilder(
+              future: FirebaseStorageService.getImageUrl(profilePicture),
+              builder: (context, urlSnapshot) {
+                if (urlSnapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        const Color(0xFFD1E7D2)),
+                    strokeWidth: 2.0,
+                  );
+                } else if (urlSnapshot.hasError) {
+                  return Text('Error: ${urlSnapshot.error}');
+                } else {
+                  var url = urlSnapshot.data as String;
+                  return CircleAvatar(
+                    backgroundImage: NetworkImage(url),
+                  );
+                }
+              },
+            ),
+            SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                constraints: BoxConstraints(maxWidth: 250), // Adjust the max width as needed
+                child: ListTile(
+                  title: Text(
+                    username,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.share),
+                        onPressed: () {},
+                      ),
+                      
+                    ],
+                  ),
+                ),
               ),
-              IconButton(
-                icon: Icon(Icons.save),
-                onPressed: () {},
-              ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
   }
-
- 
 }
 
 class TabViewWidget extends StatelessWidget {
@@ -265,76 +304,102 @@ class TabViewWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildIngredientsTab(servings) {
-    final recipeSnapshot = this.recipeSnapshot;
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Quantity for $servings Serving',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.remove),
-                    onPressed: () {
-                      if (servings > 1) {
-                        updateServings(servings - 1); // Decrease servings
-                      }
-                    },
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.add),
-                    onPressed: () {
-                      updateServings(servings + 1);
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          SizedBox(height: 20),
-          // Display ingredients here based on servings
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('recipe')
-                .doc(recipeSnapshot.id)
-                .collection('ingredients')
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return CircularProgressIndicator();
-              }
-              if (snapshot.hasError) {
-                return Text('Error: ${snapshot.error}');
-              }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Text('No ingredients found');
-              }
+Widget _buildIngredientsTab(servings) {
+  final recipeSnapshot = this.recipeSnapshot;
+  return Padding(
+    padding: const EdgeInsets.all(16.0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('recipe')
+              .doc(recipeSnapshot.id)
+              .collection('ingredients')
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return CircularProgressIndicator();
+            }
+            if (snapshot.hasError) {
+              return Text('Error: ${snapshot.error}');
+            }
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Text('No ingredients found');
+            }
 
-              List<QueryDocumentSnapshot> ingredients = snapshot.data!.docs;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: ingredients.map((ingredient) {
-                  String name = ingredient.id;
-                  String originalQuantity = ingredient['quantity'];
-                  String adjustedQuantity =
-                      _calculateAdjustedQuantity(originalQuantity);
-                  return Text('$name: $adjustedQuantity');
-                }).toList(),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
+            List<QueryDocumentSnapshot> ingredients = snapshot.data!.docs;
+            int totalIngredients = ingredients.length; // Count the ingredients
+            return Text(
+              'Ingredients- $totalIngredients',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            );
+          },
+        ),
+        SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Quantity for $servings Serving',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.remove),
+                  onPressed: () {
+                    if (servings > 1) {
+                      updateServings(servings - 1); // Decrease servings
+                    }
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.add),
+                  onPressed: () {
+                    updateServings(servings + 1);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+        SizedBox(height: 20),
+        // Display ingredients here based on servings
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('recipe')
+              .doc(recipeSnapshot.id)
+              .collection('ingredients')
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return CircularProgressIndicator();
+            }
+            if (snapshot.hasError) {
+              return Text('Error: ${snapshot.error}');
+            }
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Text('No ingredients found');
+            }
+
+            List<QueryDocumentSnapshot> ingredients = snapshot.data!.docs;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: ingredients.map((ingredient) {
+                String name = ingredient.id;
+                String originalQuantity = ingredient['quantity'];
+                String adjustedQuantity =
+                    _calculateAdjustedQuantity(originalQuantity);
+                return Text('$name: $adjustedQuantity');
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    ),
+  );
+}
 
   String _calculateAdjustedQuantity(String originalQuantity) {
     double originalQuantityValue = double.tryParse(originalQuantity) ?? 0.0;
