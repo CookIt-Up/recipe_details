@@ -19,28 +19,77 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   late VideoWidget _videoWidget;
   late UploaderDetailsWidget _UploaderDetailsWidget;
   late TabViewWidget _tabViewWidget;
-    late TextEditingController _commentController;
-
+  late TextEditingController _commentController;
 
   int _servings = 1;
   String _userEmail = '';
-
+  bool _isLiked = false;
+  bool _isSaved = false;
 
   @override
   void initState() {
     super.initState();
-     _commentController = TextEditingController();
+    _commentController = TextEditingController();
     _videoWidget = VideoWidget(recipeSnapshot: widget.recipeSnapshot);
     _UploaderDetailsWidget =
         UploaderDetailsWidget(recipeSnapshot: widget.recipeSnapshot);
     _getUserEmail(); 
+    _loadLikeStatus();
+    _loadSaveStatus();
   }
 
-void _getUserEmail() async {
+  void _getUserEmail() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       _userEmail = prefs.getString('email') ?? ''; // Fetch user's email
     });
+  }
+
+  void _loadLikeStatus() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    bool isLiked = prefs.getBool(widget.recipeSnapshot.id) ?? false;
+    setState(() {
+      _isLiked = isLiked;
+    });
+  }
+
+  void _loadSaveStatus() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    bool isSaved = prefs.getBool(widget.recipeSnapshot.id) ?? false;
+    setState(() {
+      _isSaved = isSaved;
+    });
+  }
+
+  void _toggleSaveStatus() async {
+    setState(() {
+      _isSaved = !_isSaved;
+    });
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setBool(widget.recipeSnapshot.id, _isSaved);
+
+    String userId = _userEmail;
+
+    if (_isSaved) {
+      // Add the recipe ID to the user's saved recipes collection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('savedRecipes')
+          .doc(widget.recipeSnapshot.id)
+          .set({
+        'recipeId': widget.recipeSnapshot.id,
+      });
+    } else {
+      // Remove the recipe ID from the user's saved recipes collection
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('savedRecipes')
+          .doc(widget.recipeSnapshot.id)
+          .delete();
+    }
   }
 
   @override
@@ -72,13 +121,30 @@ void _getUserEmail() async {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.thumb_up),
-                  onPressed: () {},
+                  icon: _isLiked ? Icon(Icons.thumb_up) : Icon(Icons.thumb_up_alt_outlined),
+                  onPressed: () async {
+                    setState(() {
+                      _isLiked = !_isLiked;
+                    });
+
+                    SharedPreferences prefs = await SharedPreferences.getInstance();
+                    prefs.setBool(widget.recipeSnapshot.id, _isLiked);
+
+                    DocumentReference recipeRef = FirebaseFirestore.instance
+                        .collection('recipe')
+                        .doc(widget.recipeSnapshot.id);
+
+                    if (_isLiked) {
+                      await recipeRef.update({'likes': FieldValue.increment(1)});
+                    } else {
+                      await recipeRef.update({'likes': FieldValue.increment(-1)});
+                    }
+                  },
                 ),
                 IconButton(
-                  icon: Icon(Icons.save),
-                  onPressed: () {},
-                ),
+                    icon: _isSaved ? Icon(Icons.bookmark) : Icon(Icons.bookmark_border),
+                    onPressed: _toggleSaveStatus,
+                 ),
               ],
             ),
           ),
@@ -96,7 +162,6 @@ void _getUserEmail() async {
   }
 
   int _currentPageIndex = 0;
-
   void _updateCurrentPageIndex(int newIndex) {
     setState(() {
       _currentPageIndex = newIndex;
