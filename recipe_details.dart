@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -25,6 +27,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
   String _userEmail = '';
   bool _isLiked = false;
   bool _isSaved = false;
+  Map<int, bool> _isChecked = {};
 
   @override
   void initState() {
@@ -36,6 +39,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     _getUserEmail(); 
     _loadLikeStatus();
     _loadSaveStatus();
+    _loadCheckboxStates(); 
   }
 
   void _getUserEmail() async {
@@ -91,6 +95,27 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           .delete();
     }
   }
+void toggleCheckbox(int index) {
+  setState(() {
+    _isChecked[index] = !(_isChecked[index] ?? false);
+  });
+  _saveCheckboxStates();
+}
+
+void _saveCheckboxStates() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  prefs.setString('checkboxStates', jsonEncode(_isChecked));
+}
+void _loadCheckboxStates() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  String? checkboxStatesJson = prefs.getString('checkboxStates');
+  if (checkboxStatesJson != null && checkboxStatesJson.isNotEmpty) {
+    Map<String, dynamic> decodedMap = jsonDecode(checkboxStatesJson);
+    setState(() {
+      _isChecked = decodedMap.map((key, value) => MapEntry(int.parse(key), value));
+    });
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +125,9 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
       currentPageIndex: _currentPageIndex,
       updateServings: _updateServings,
       updateCurrentPageIndex: _updateCurrentPageIndex,
+       isChecked: _isChecked,
+    toggleCheckbox: toggleCheckbox
+     
     );
 
     return Scaffold(
@@ -336,6 +364,8 @@ class TabViewWidget extends StatelessWidget {
   final Function(int) updateServings;
   final Function(int) updateCurrentPageIndex;
   final TextEditingController _commentController = TextEditingController();
+   final Map<int, bool> isChecked; // Receive _isChecked map from parent
+  final Function(int) toggleCheckbox; //
 
   TabViewWidget({
     Key? key,
@@ -344,6 +374,8 @@ class TabViewWidget extends StatelessWidget {
     required this.currentPageIndex,
     required this.updateServings,
     required this.updateCurrentPageIndex,
+      required this.isChecked,
+    required this.toggleCheckbox, 
   }) : super(key: key);
 
   @override
@@ -360,7 +392,7 @@ class TabViewWidget extends StatelessWidget {
             ],
           ),
           SizedBox(
-            height: 300,
+            height: 400,
             child: TabBarView(
               children: [
                 _buildIngredientsTab(servings),
@@ -374,9 +406,10 @@ class TabViewWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildIngredientsTab(servings) {
-    final recipeSnapshot = this.recipeSnapshot;
-    return Padding(
+  Widget _buildIngredientsTab(int servings) {
+  final recipeSnapshot = this.recipeSnapshot;
+  return SingleChildScrollView(
+    child: Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,78 +432,106 @@ class TabViewWidget extends StatelessWidget {
               }
 
               List<QueryDocumentSnapshot> ingredients = snapshot.data!.docs;
-              int totalIngredients =
-                  ingredients.length; // Count the ingredients
-              return Text(
-                'Ingredients- $totalIngredients',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              );
-            },
-          ),
-          SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Quantity for $servings Serving',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              Row(
+              int totalIngredients = ingredients.length;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    icon: Icon(Icons.remove),
-                    onPressed: () {
-                      if (servings > 1) {
-                        updateServings(servings - 1); // Decrease servings
-                      }
-                    },
+                  Text(
+                    'Ingredients- $totalIngredients',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.add),
-                    onPressed: () {
-                      updateServings(servings + 1);
+                  SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Quantity for $servings Serving',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.remove),
+                            onPressed: () {
+                              if (servings > 1) {
+                                updateServings(servings - 1);
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.add),
+                            onPressed: () {
+                              updateServings(servings + 1);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 20),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: ingredients.length,
+                    itemBuilder: (context, index) {
+                      String name = ingredients[index].id;
+                      String originalQuantity = ingredients[index]['quantity'];
+                      String adjustedQuantity =
+                          _calculateAdjustedQuantity(originalQuantity);
+                      return ListTile(
+                        title: Text('$name: $adjustedQuantity'),
+                        trailing: Checkbox(
+                          value: isChecked[index] ?? false,
+                          onChanged: (value) {
+                            toggleCheckbox(index);
+                            if (value == true) {
+                              // Add ingredient to selectedIngredients in Firestore
+                              _addIngredientToSelectedIngredients(name);
+                            }else {
+                              // Remove ingredient from selectedIngredients in Firestore
+                              _removeIngredientFromSelectedIngredients(name);
+                            }
+                          },
+                          activeColor: Colors.transparent,
+                        ),
+                      );
                     },
                   ),
                 ],
-              ),
-            ],
-          ),
-          SizedBox(height: 20),
-          // Display ingredients here based on servings
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('recipe')
-                .doc(recipeSnapshot.id)
-                .collection('ingredients')
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return CircularProgressIndicator();
-              }
-              if (snapshot.hasError) {
-                return Text('Error: ${snapshot.error}');
-              }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Text('No ingredients found');
-              }
-
-              List<QueryDocumentSnapshot> ingredients = snapshot.data!.docs;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: ingredients.map((ingredient) {
-                  String name = ingredient.id;
-                  String originalQuantity = ingredient['quantity'];
-                  String adjustedQuantity =
-                      _calculateAdjustedQuantity(originalQuantity);
-                  return Text('$name: $adjustedQuantity');
-                }).toList(),
               );
             },
           ),
         ],
       ),
-    );
+    ),
+  );
+}
+
+void _addIngredientToSelectedIngredients(String ingredientName) async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  String? userId = prefs.getString('email');
+  if (userId != null) {
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .update({
+      'selectedIngredients': FieldValue.arrayUnion([ingredientName])
+    });
   }
+}
+
+void _removeIngredientFromSelectedIngredients(String ingredientName) async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  String? userId = prefs.getString('email');
+  if (userId != null) {
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .update({
+      'selectedIngredients': FieldValue.arrayRemove([ingredientName])
+    });
+  }
+}
+
 
   String _calculateAdjustedQuantity(String originalQuantity) {
     double originalQuantityValue = double.tryParse(originalQuantity) ?? 0.0;
