@@ -104,18 +104,23 @@ void toggleCheckbox(int index) {
 
 void _saveCheckboxStates() async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
-  prefs.setString('checkboxStates', jsonEncode(_isChecked));
+  // Convert boolean values to strings
+  Map<String, String> stringMap = _isChecked.map((key, value) => MapEntry(key.toString(), value.toString()));
+  prefs.setString('checkboxStates', jsonEncode(stringMap));
 }
+
 void _loadCheckboxStates() async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String? checkboxStatesJson = prefs.getString('checkboxStates');
   if (checkboxStatesJson != null && checkboxStatesJson.isNotEmpty) {
     Map<String, dynamic> decodedMap = jsonDecode(checkboxStatesJson);
+    // Convert string values back to boolean
     setState(() {
-      _isChecked = decodedMap.map((key, value) => MapEntry(int.parse(key), value));
+      _isChecked = decodedMap.map((key, value) => MapEntry(int.parse(key), value == 'true'));
     });
   }
 }
+
 
   @override
   Widget build(BuildContext context) {
@@ -261,19 +266,23 @@ class _VideoWidgetState extends State<VideoWidget> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return _isVideoLoading
-        ? AspectRatio(
-            aspectRatio: 4 / 3, // Set a default aspect ratio while loading
-            child: Center(child: CircularProgressIndicator()),
-          )
-        : AspectRatio(
-            aspectRatio: _chewieController.aspectRatio ?? 16 / 9,
-            child: Chewie(
-              controller: _chewieController,
-            ),
-          );
-  }
+ @override
+Widget build(BuildContext context) {
+  return _isVideoLoading
+      ? AspectRatio(
+          aspectRatio: 4 / 3, // Set a default aspect ratio while loading
+          child: Center(child: CircularProgressIndicator()),
+        )
+      : _chewieController != null
+          ? AspectRatio(
+              aspectRatio: _chewieController.aspectRatio ?? 16 / 9,
+              child: Chewie(
+                controller: _chewieController,
+              ),
+            )
+          : Container(); // Return an empty container if chewieController is not initialized yet
+}
+
 }
 
 class UploaderDetailsWidget extends StatelessWidget {
