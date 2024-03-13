@@ -265,7 +265,6 @@ class _VideoWidgetState extends State<VideoWidget> {
     return url;
   }
 
-  @override
  @override
 Widget build(BuildContext context) {
   return _isVideoLoading
