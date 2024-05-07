@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cookitup/upload_recipe.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home.dart';
@@ -19,9 +20,9 @@ class GroceryListApp extends StatelessWidget {
         //'/': (context) => filterScreen(),
         '/userProfile': (context) => UserProfileScreen(),
         '/groceryList': (context) => GroceryListApp(),
-        '/main': (context) =>Home(),
-        '/chatbot':(context) => ChatbotApp(),
-        '/filter':(context) => FilterPage(),
+        '/main': (context) => Home(),
+        '/chatbot': (context) => ChatbotApp(),
+        '/filter': (context) => FilterPage(),
       },
     );
   }
@@ -59,44 +60,44 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     }
   }
 
- void _clearAllIngredients(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: Text("Clear All Ingredients"),
-        content: Text("Are you sure you want to clear all selected ingredients?"),
-        actions: <Widget>[
-          TextButton(
-            child: Text("Cancel"),
-            onPressed: () {
-              Navigator.of(context).pop(); // Close the dialog
-            },
-          ),
-          TextButton(
-            child: Text("Clear"),
-            onPressed: () async {
-              Navigator.of(context).pop(); // Close the dialog
-              _clearIngredients();
-            },
-          ),
-        ],
-      );
-    },
-  );
-}
-
-void _clearIngredients() async {
-  SharedPreferences prefs = await SharedPreferences.getInstance();
-  String? userId = prefs.getString('email');
-  if (userId != null) {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .update({'selectedIngredients': []});
+  void _clearAllIngredients(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Clear All Ingredients"),
+          content:
+              Text("Are you sure you want to clear all selected ingredients?"),
+          actions: <Widget>[
+            TextButton(
+              child: Text("Cancel"),
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+              },
+            ),
+            TextButton(
+              child: Text("Clear"),
+              onPressed: () async {
+                Navigator.of(context).pop(); // Close the dialog
+                _clearIngredients();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
-}
 
+  void _clearIngredients() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? userId = prefs.getString('email');
+    if (userId != null) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .update({'selectedIngredients': []});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +141,6 @@ void _clearIngredients() async {
                     );
                   },
                 );
-
               }
             }
           },
@@ -158,25 +158,34 @@ void _clearIngredients() async {
             ),
             IconButton(
               onPressed: () {
-                Navigator.pushNamed(context, '/filter');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => FilterPage()),
+                );
               },
               icon: Icon(Icons.soup_kitchen_sharp),
             ),
             IconButton(
               onPressed: () {
-                // Handle icon 3 pressed
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => YourRecipe()),
+                );
               },
               icon: Icon(Icons.add),
             ),
             IconButton(
               onPressed: () {
-                Navigator.pushNamed(context, '/groceryList');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => GroceryListApp()),
+                );
               },
               icon: Icon(Icons.list_alt_outlined),
             ),
             IconButton(
               onPressed: () {
-                Navigator.pushNamed(context, '/chatbot');
+                // Navigator.pushNamed(context, '/chatbot');
               },
               icon: Icon(Icons.person_4_sharp),
             ),
@@ -186,18 +195,18 @@ void _clearIngredients() async {
     );
   }
 }
+
 void _removeIngredient(String ingredient) async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String? userId = prefs.getString('email');
   if (userId != null) {
     List<String> updatedIngredients = [];
     List<String> currentIngredients = [];
-    final DocumentSnapshot<Map<String, dynamic>> snapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .get();
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await FirebaseFirestore.instance.collection('users').doc(userId).get();
 
-    currentIngredients = List<String>.from(snapshot.data()?['selectedIngredients'] ?? []);
+    currentIngredients =
+        List<String>.from(snapshot.data()?['selectedIngredients'] ?? []);
 
     for (int i = 0; i < currentIngredients.length; i++) {
       if (currentIngredients[i] != ingredient) {
@@ -211,3 +220,4 @@ void _removeIngredient(String ingredient) async {
         .update({'selectedIngredients': updatedIngredients});
   }
 }
+ 
